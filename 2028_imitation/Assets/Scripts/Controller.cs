@@ -12,7 +12,6 @@ public class Controller : MonoBehaviour
     void Update()
     {
         up = down = left = right = false;
-
         up = Input.GetKey(KeyCode.UpArrow);
         down = Input.GetKey(KeyCode.DownArrow);
         left = Input.GetKey(KeyCode.LeftApple);

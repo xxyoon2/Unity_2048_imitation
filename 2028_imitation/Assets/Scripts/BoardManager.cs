@@ -7,72 +7,171 @@ using UnityEngine;
 public class BoardManager : MonoBehaviour
 {
     [SerializeField] private GameObject _blockSpawner;
+    [SerializeField] private GameObject _playerController;
 
     private Controller _controller;
     private BlockManager _blockManager;
 
     private int[,] _board;
 
+    private enum BlockState
+    {
+        NONE,
+        UP,
+        DOWN,
+        RIGHT,
+        LEFT
+    }
+
     // 보드 생성
     void Start()
     {
         _blockManager = _blockSpawner.transform.GetComponent<BlockManager>();
+        _controller = _playerController.transform.GetComponent<Controller>();
 
         _board = new int[4, 4];
         Initialization();
     }
 
-    private void MergeableBlockCheck()
-    {
+    private BlockState _blockState = BlockState.NONE;
 
+    private int SwitchPlusMinus(int plusMinus)
+    {
+        return plusMinus == 1 ? -1 : 1;
     }
 
+    //Vertical
     private void MoveBlock()
     {
+        int FirstSearchPoint = BLANK;
+        int SecondSearchPoint = BLANK;
+        int plusMinus = BLANK;
+        switch (_blockState)
+        {
+            case BlockState.UP: case BlockState.LEFT:
+                FirstSearchPoint = 1;
+                SecondSearchPoint = 4;
+                plusMinus = 1;
+                break;
+            case BlockState.DOWN: case BlockState.RIGHT:
+                FirstSearchPoint = 2;
+                SecondSearchPoint = -1;
+                plusMinus = -1;
+                break;
+            default:
+                break;
+        }
+
         bool createBlock = false;
-        const int END_DIRECTION = 0; // 방향의 가장 끝
-        for (int i = END_DIRECTION + 1; i < 4; i++)
+        for (int i = FirstSearchPoint; i != SecondSearchPoint; i += plusMinus)
         {
             for (int j = 0; j < 4; j++)
             {
-                // 이동시킬 블록이 있는지 탐색
-                if (_board[i, j] != BLANK)
+                
+                switch(_blockState)
                 {
-                    if (createBlock == false)
-                    {
-                        createBlock = true;
-                    }
-
-                    for (int k = i; k > 0; k--)
-                    {
-                        // 이동시킬 자리 탐색
-                        if (_board[k - 1, j] != BLANK)
+                    case BlockState.UP: case BlockState.DOWN:
+                        // Vertical Search
+                        if (_board[i, j] != BLANK)
                         {
-                            if (_board[k - 1, j] == _board[i, j])
+                            int blockNum = _board[i, j];
+                            if (createBlock == false)
                             {
-                                // 이동 병합
-                                _board[k - 1, j] += _board[i, j];
-                            }
-                            else
-                            {
-                                // 이동
-                                _board[k, j] = _board[i, j];
+                                createBlock = true;
                             }
 
-                            _board[i, j] = 0;
+                            plusMinus = SwitchPlusMinus(plusMinus);
+
+                            // 여기가 진짜 문제
+                            for (int k = i; k != FirstSearchPoint + plusMinus; k += plusMinus)
+                            {
+                                // 이동시킬 자리 탐색
+                                if (_board[k + plusMinus, j] != BLANK)
+                                {
+                                    Debug.Log("왜");
+                                    if (_board[k + plusMinus, j] == blockNum)
+                                    {
+                                        // 이동 병합
+                                        _board[k + plusMinus, j] += blockNum;
+                                        _board[i, j] = 0;
+                                        _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(i, j), ConvertCoordinateToSquareID(k + plusMinus, j));
+                                    }
+                                    else
+                                    {
+                                        // 이동
+                                        if (k != i)
+                                        {
+                                            _board[k, j] = _board[i, j];
+                                            _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(i, j), ConvertCoordinateToSquareID(k, j));
+                                        }
+                                    }
+                                }
+                                else if ((k + plusMinus) == FirstSearchPoint + plusMinus && _board[k + plusMinus, j] == BLANK)
+                                {
+                                    _board[k + plusMinus, j] = blockNum;
+                                    _board[i, j] = 0;
+                                    _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(i, j), ConvertCoordinateToSquareID(k + plusMinus, j));
+                                }
+                            }
+
+                            plusMinus = SwitchPlusMinus(plusMinus);
                         }
-                    }
+                        break;
+
+                    case BlockState.LEFT: case BlockState.RIGHT:
+                        // Horizontal Search
+                        if (_board[j, i] != BLANK)
+                        {
+                            int blockNum = _board[j, i];
+                            if (createBlock == false)
+                            {
+                                createBlock = true;
+                            }
+
+                            plusMinus = SwitchPlusMinus(plusMinus);
+
+                            // 여기가 진짜 문제
+                            for (int k = i; k != FirstSearchPoint + plusMinus; k += plusMinus)
+                            {
+                                // 이동시킬 자리 탐색
+                                if (_board[j, k + plusMinus] != BLANK)
+                                {
+                                    Debug.Log("왜");
+                                    if (_board[j, k + plusMinus] == blockNum)
+                                    {
+                                        // 이동 병합
+                                        _board[j, k + plusMinus] += blockNum;
+                                        _board[j, i] = 0;
+                                        _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(j, i), ConvertCoordinateToSquareID(j, k + plusMinus));
+                                    }
+                                    else
+                                    {
+                                        // 이동
+                                        if (k != i)
+                                        {
+                                            _board[k, j] = _board[i, j];
+                                            _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(j, i), ConvertCoordinateToSquareID(j, k));
+                                        }
+                                    }
+                                }
+                                else if ((k + plusMinus) == FirstSearchPoint + plusMinus && _board[j, k + plusMinus] == BLANK)
+                                {
+                                    _board[j, k + plusMinus] = blockNum;
+                                    _board[j, i] = 0;
+                                    _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(j, i), ConvertCoordinateToSquareID(j, k + plusMinus));
+                                }
+                            }
+
+                            plusMinus = SwitchPlusMinus(plusMinus);
+                        }
+                        break;
                 }
             }
-        }
-
-        if (createBlock)
-        {
-            // 블록 생
         }
     }
 
     private const int BLANK = 0;
+    private const int NUNBER_BLOCKS_CREATE = 2;
     /// <summary>
     /// 초기화
     /// </summary>
@@ -86,7 +185,7 @@ public class BoardManager : MonoBehaviour
             }
         }
 
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i < NUNBER_BLOCKS_CREATE; i++)
         {
             int x, y;
             (x, y) = RandomPositionSetting();
@@ -98,6 +197,7 @@ public class BoardManager : MonoBehaviour
             }
 
             _board[x, y] = 2;
+            Debug.Log(ConvertCoordinateToSquareID(x, y));
             _blockManager.Spawn(ConvertCoordinateToSquareID(x, y));
         }
     }
@@ -196,24 +296,34 @@ public class BoardManager : MonoBehaviour
 
         if (_controller.up)
         {
-            ProcessingStatusCheck(true);
+            Debug.Log("위");
+            _blockState = BlockState.UP;
             MoveBlock();
             RandomPositionSetting();
         }
 
-        //if (_controller.down)
-        //{
-        //    ProcessingStatusCheck(true);
-        //}
+        if (_controller.down)
+        {
+            Debug.Log("아래");
+            _blockState = BlockState.DOWN;
+            MoveBlock();
+            RandomPositionSetting();
+        }
 
-        //if (_controller.right)
-        //{
-        //    ProcessingStatusCheck(true);
-        //}
+        if (_controller.right)
+        {
+            Debug.Log("오른쪽");
+            _blockState = BlockState.RIGHT;
+            MoveBlock();
+            RandomPositionSetting();
+        }
 
-        //if (_controller.left)
-        //{
-        //    ProcessingStatusCheck(true);
-        //}
+        if (_controller.left)
+        {
+            Debug.Log("왼쪽");
+            _blockState = BlockState.LEFT;
+            MoveBlock();
+            RandomPositionSetting();
+        }
     }
 }

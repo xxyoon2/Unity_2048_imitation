@@ -12,6 +12,9 @@ public class BlockManager : MonoBehaviour
 
     private const int BLANK = -1;
 
+    private const int BLOCK_COUNT = 20;
+    private const int BLOCKT_COUNT_INDEX = BLOCK_COUNT - 1;
+
     /// <summary>
     /// 블록 관련 데이터
     /// </summary>
@@ -61,12 +64,11 @@ public class BlockManager : MonoBehaviour
             _blockSpawnPosition.Add(_board.transform.GetChild(i).gameObject.transform);
         }
 
-        for (int i = 0; i < 30; i++)
+        for (int i = 0; i < BLOCK_COUNT; i++)
         {
             GameObject block = Instantiate(_blockPrefab, _board.transform);
             block.SetActive(false);
-            BlockData data = new BlockData(block);
-            _blockList.Add(data);
+            _blockList.Add(new BlockData(block));
         }
     }
 
@@ -77,19 +79,22 @@ public class BlockManager : MonoBehaviour
 
         // previousSquareID와 같은 blockData 찾기
         GameObject block = null;
-        for (int i = 0; i < 30; i++)
+        for (int i = 0; i < BLOCK_COUNT; i++)
         {
             if (_blockList[i].GetID() == previousSquareID)
             {
                 // ID 갱신
-                _blockList[i].SetID(currentSquareID);
+                BlockData data = _blockList[i];
+                data.SetID(currentSquareID);
+                _blockList[i] = data;
                 block = _blockList[i].GetBlock();
                 break;
             }
         }
 
+        Debug.Log("요청");
         // targetPoint까지 이동하라 지시
-        block.transform.GetComponent<BlockBehavior>().Move(_blockSpawnPosition[currentSquareID]);
+        block.transform.GetComponent<BlockBehavior>().Move(targetPoint);
     }
 
     /// <summary>
@@ -98,11 +103,17 @@ public class BlockManager : MonoBehaviour
     /// <param name="squareID">칸ID</param>
     public void Spawn(int squareID)
     {
-        BlockData blockData = _blockList[30];
-        blockData.SetID(squareID);
-        blockData.GetBlock().transform.position = _blockSpawnPosition[squareID].position;
-        blockData.GetBlock().SetActive(true);
+        BlockData data = _blockList[0];
+        data.SetID(squareID);
+        _blockList[0] = data;
+        Debug.Log(data.GetID());
 
-        _blockList.Sort(delegate(BlockData a, BlockData b) { return a.GetID().CompareTo(b.GetID()); });
+        data.GetBlock().transform.position = _blockSpawnPosition[squareID].position;
+        data.GetBlock().SetActive(true);
+
+        _blockList.Sort((x, y) =>
+        {
+            return x.GetID().CompareTo(y.GetID());
+        });
     }
 }

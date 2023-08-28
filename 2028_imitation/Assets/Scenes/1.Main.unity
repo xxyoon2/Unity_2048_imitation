@@ -1233,6 +1233,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _blockSpawner: {fileID: 657191933}
+  _playerController: {fileID: 1589660706}
 --- !u!1 &478468746
 GameObject:
   m_ObjectHideFlags: 0

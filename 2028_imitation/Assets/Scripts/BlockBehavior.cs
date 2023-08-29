@@ -5,6 +5,10 @@ using UnityEngine;
 public class BlockBehavior : MonoBehaviour
 {
     private Transform _targetPoint;
+    private Animator _animator;
+
+    private const float MOVE_TIEM = 0.1f;
+
     public void Move(Transform targetPoint)
     {
         _targetPoint = targetPoint;
@@ -13,18 +17,23 @@ public class BlockBehavior : MonoBehaviour
 
     IEnumerator MoveTargetPoint()
     {
-        while (true)
+        float percent = 0;
+        float current = 0;
+        Vector2 startPoint = transform.position;
+        while (percent < 1)
         {
-            Debug.Log("움직이다.");
-            float distance = Vector2.Distance(this.transform.position, _targetPoint.position);
+            current += Time.deltaTime;
+            percent = current / MOVE_TIEM;
+
+            transform.position = Vector3.Lerp(startPoint, _targetPoint.position, percent);
+            //Debug.Log("움직이다.");
+            float distance = Vector2.Distance(transform.position, _targetPoint.position);
             if (distance <= 0.01f)
             {
-                this.transform.position = _targetPoint.position;
+                transform.position = _targetPoint.position;
                 break;
             }
-
-            this.transform.position = Vector2.MoveTowards(this.transform.position, _targetPoint.position, 0.5f);
-            yield return new WaitForSeconds(0.1f);
+            yield return null;
         }
 
         yield break;

@@ -8,12 +8,11 @@ public class BlockManager : MonoBehaviour
     [SerializeField] private GameObject _blockPrefab;
 
     private List<Transform> _blockSpawnPosition;
-    private List<BlockData> _blockList;    // 사용하지 않는 블록 리스트
+    private List<BlockData> _blockList;
+    //private List<BlockData> _currentBlockList;
 
     private const int BLANK = -1;
-
     private const int BLOCK_COUNT = 20;
-    private const int BLOCKT_COUNT_INDEX = BLOCK_COUNT - 1;
 
     /// <summary>
     /// 블록 관련 데이터
@@ -21,24 +20,14 @@ public class BlockManager : MonoBehaviour
     struct BlockData
     {
         private int _id;
-        //public int ID
-        //{
-        //    get
-        //    {
-        //        return _id;
-        //    }
-        //    set
-        //    {
-        //        _id = value;
-        //    }
-        //}
-
         private GameObject _block;
+        //private bool _isNeedMerge;
 
         public BlockData(GameObject ob = null, int id = BLANK)
         {
             _block = ob;
             _id = id;
+           //_isNeedMerge = isNeedMerge;
         }
 
         public void SetID(int id)
@@ -55,12 +44,23 @@ public class BlockManager : MonoBehaviour
         {
             return _block;
         }
+
+        //public bool GetIsNeedMerge()
+        //{
+        //    return _isNeedMerge; 
+        //}
+
+        //public void SetNeedMerge(bool isNeedMerge)
+        //{
+        //    _isNeedMerge = isNeedMerge;
+        //}
     }
 
     private void OnEnable()
     {
         _blockSpawnPosition = new List<Transform>();
         _blockList = new List<BlockData>();
+        //_currentBlockList = new List<BlockData>();
 
         int childCount = _board.transform.childCount;
         for (int i = 0; i < childCount; i++)
@@ -85,46 +85,9 @@ public class BlockManager : MonoBehaviour
         for (int i = 0; i < BLOCK_COUNT; i++)
         {
             _blockList[i].GetBlock().SetActive(false);
-            BlockData data = _blockList[i];
-            data.SetID(BLANK);
-            _blockList[i] = data;
+            UpdateSquareID(i, BLANK);
         }
-
-        Debug.Log("블록 초기화 완료!!");
-    }
-
-    public void SortBlockList()
-    {
-        _blockList.Sort((x, y) =>
-        {
-            return x.GetID().CompareTo(y.GetID());
-        });
-    }
-
-    public void BlockMoveRequest(int previousSquareID, int currentSquareID)
-    {
-        // 블록 아이디 계산해서 어디서부터 어디까지 이동해야하는지 BlockBehavior에 요청
-        Transform targetPoint = _blockSpawnPosition[currentSquareID];
-
-        // previousSquareID와 같은 blockData 찾기
-        GameObject block = null;
-        for (int i = 0; i < BLOCK_COUNT; i++)
-        {
-            if (_blockList[i].GetID() == previousSquareID)
-            {
-                // ID 갱신
-                BlockData data = _blockList[i];
-                data.SetID(currentSquareID);
-                _blockList[i] = data;
-                block = _blockList[i].GetBlock();
-                SortBlockList();
-
-                break;
-            }
-        }
-        Debug.Assert(block != null, "블록 오브젝트를 찾지 못 함");
-        // targetPoint까지 이동하라 지시
-         block.transform.GetComponent<BlockBehavior>().Move(targetPoint);
+        //_blockList = _currentBlockList;
     }
 
     /// <summary>
@@ -133,61 +96,171 @@ public class BlockManager : MonoBehaviour
     /// <param name="squareID">칸ID</param>
     public void Spawn(int squareID, int num)
     {
-        BlockData data = _blockList[0];
-        data.SetID(squareID);
-        _blockList[0] = data;
+        //_currentBlockList = _blockList;
+        int index = _blockList.FindIndex(x => x.GetID().Equals(BLANK));
+        BlockData data = _blockList[index];
+        UpdateSquareID(index, squareID);
 
-        data.GetBlock().transform.position = _blockSpawnPosition[squareID].position;
-        data.GetBlock().SetActive(true);
-        data.GetBlock().GetComponent<BlockBehavior>().Creation(num);
-
-        SortBlockList();
+        GameObject block = data.GetBlock();
+        block.transform.position = _blockSpawnPosition[squareID].position;
+        block.SetActive(true);
+        block.GetComponent<BlockBehavior>().Creation(num);
     }
 
-    public void MergeBlock(List<int> mergeSquareIDList)
+    /// <summary>
+    /// 칸ID 갱신
+    /// </summary>
+    /// <param name="index">블록데이터리스트 인덱스</param>
+    /// <param name="id">칸ID</param>
+    private void UpdateSquareID(int index, int id)
     {
-        // 블록 애니메이션 재생함수
-        int idListCount = mergeSquareIDList.Count;
-        int blockListCount = _blockList.Count;
+        BlockData data = _blockList[index];
+        data.SetID(id);
+        _blockList[index] = data;
+    }
 
-        List<GameObject> blockList = new List<GameObject>();
-        for (int i = 0; i < idListCount; i++)
+    private void SortBlockList()
+    {
+        _blockList.Sort((x, y) =>
         {
-            for (int j = 0; j < blockListCount; j++)
+            return x.GetID().CompareTo(y.GetID());
+        });
+        //_blockList = _currentBlockList;
+    }
+
+    //public void UpdateIsNeedMerge(int id, bool isNeed)
+    //{
+    //    int index = 0;
+    //    for (int i = 0; i < BLOCK_COUNT; i++)
+    //    {
+    //        if (_currentBlockList[i].GetID() == id)
+    //        {
+    //            index = i;
+    //            BlockData data = _currentBlockList[index];
+    //            data.SetNeedMerge(isNeed);
+    //            _currentBlockList[i] = data;
+
+    //            break;
+    //        }
+    //    }
+    //}
+
+    public void BlockMoveRequest(int previousSquareID, int currentSquareID, bool isNeedMerge = false, int mergeBlockNumber = 2)
+    {
+        //_currentBlockList = _previousBlockList;
+
+        // 블록 아이디 계산해서 어디서부터 어디까지 이동해야하는지 BlockBehavior에 요청
+        Transform targetPoint = _blockSpawnPosition[currentSquareID];
+
+        // previousSquareID와 같은 blockData 찾기
+        int index = _blockList.FindIndex(x => x.GetID().Equals(previousSquareID));
+        //for (int i = 0; i < BLOCK_COUNT; i++)
+        //{
+        //    if (_currentBlockList[i].GetID() == previousSquareID)
+        //    {
+        //        index = i;
+        //        break;
+        //    }
+        //}
+
+        UpdateSquareID(index, currentSquareID);
+        GameObject block = _blockList[index].GetBlock();
+        block.transform.GetComponent<BlockBehavior>().Move(targetPoint);
+
+        if (isNeedMerge)
+        {
+            StartCoroutine(Merge(block, currentSquareID, mergeBlockNumber));
+        }
+    }
+
+    IEnumerator Merge(GameObject block, int mergeBlockSquareID, int mergeBlockNumber)
+    {
+        yield return new WaitWhile(() => block.transform.GetComponent<BlockBehavior>().IsBlockMove());
+
+        // currentSquareID와 같은 아이디인 블록 두 개 찾아서 애니메이션 재생 후 Active off
+        int count = _blockList.Count;
+        int index1 = 0, index2 = 0;
+        GameObject mergeBlock1 = null;
+        GameObject mergeBlock2 = null;
+        for (int i = 0; i < count; i++)
+        {
+            if (_blockList[i].GetID() == mergeBlockSquareID)
             {
-                if (_blockList[j].GetID() == mergeSquareIDList[i])
+                if (mergeBlock1 == null)
                 {
-                    _blockList[j].GetBlock().GetComponent<BlockBehavior>().Extinction();
-                    blockList.Add(_blockList[j].GetBlock());
-
-                    BlockData data = _blockList[j];
-                    data.SetID(BLANK);
-                    _blockList[j] = data;
-
-                    SortBlockList();
+                    index1 = i;
+                    mergeBlock1 = _blockList[i].GetBlock();
+                }
+                else
+                {
+                    index2 = i;
+                    mergeBlock2 = _blockList[i].GetBlock();
+                    break;
                 }
             }
         }
 
-        // 코루틴으로 병합된 블럭 SetActive(false);
-        StartCoroutine(BlockCleanup(blockList));
-    }
+        mergeBlock1.transform.GetComponent<BlockBehavior>().Extinction();
+        mergeBlock2.transform.GetComponent<BlockBehavior>().Extinction();
 
-    IEnumerator BlockCleanup(List<GameObject> blockList)
-    {
-        yield return new WaitForSeconds(0.5f);
+        // 블럭 하나 새로 생성
+        Spawn(mergeBlockSquareID, mergeBlockNumber);
 
-        foreach(GameObject block in blockList)
-        {
-            block.SetActive(false);
-        }
+        yield return new WaitForSeconds(0.1f);
+
+        // 머지 한 블록들 Set.Active(false);
+        mergeBlock1.SetActive(false);
+        mergeBlock2.SetActive(false);
+        UpdateSquareID(index1, BLANK);
+        UpdateSquareID(index2, BLANK);
 
         yield break;
     }
 
+    //public void MergeBlock(List<int> mergeSquareIDList)
+    //{
+    //    // 블록 애니메이션 재생함수
+    //    int idListCount = mergeSquareIDList.Count;
+    //    int blockListCount = _blockList.Count;
+
+    //    List<GameObject> blockList = new List<GameObject>();
+    //    for (int i = 0; i < idListCount; i++)
+    //    {
+    //        for (int j = 0; j < blockListCount; j++)
+    //        {
+    //            if (_blockList[j].GetID() == mergeSquareIDList[i])
+    //            {
+    //                _blockList[j].GetBlock().GetComponent<BlockBehavior>().Extinction();
+    //                blockList.Add(_blockList[j].GetBlock());
+
+    //                // 아이디 먼저 바꿔주고 조금 시간 지난 후에 Setoff시켜주는 바람에 이미
+    //                // 다른 아이디로 새롭게 소환된 상태에서 블록이 off되는 버그가 발생
+    //                UpdateSquareID(j, BLANK);
+    //            }
+    //        }
+    //    }
+
+    //    // 코루틴으로 병합된 블럭 SetActive(false);
+    //    StartCoroutine(BlockCleanup(blockList));
+    //}
+
+    //IEnumerator BlockCleanup(List<GameObject> blockList)
+    //{
+    //    yield return new WaitForSeconds(0.5f);
+
+    //    foreach(GameObject block in blockList)
+    //    {
+    //        block.SetActive(false);
+    //    }
+
+    //    yield break;
+    //}
+
+    /// <summary>
+    /// 블록 초기화
+    /// </summary>
     public void ResetBlock()
     {
-        // 리스트 한 번 싹 갈아치워버려야ㅏㄹ지도 
         Initialization();
     }
 }

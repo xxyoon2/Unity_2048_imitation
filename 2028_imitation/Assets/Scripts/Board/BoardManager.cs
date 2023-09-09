@@ -2,8 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-// 블럭 이동이 없으면 블럭 생성도 하지 않음
-
 public class BoardManager : MonoBehaviour
 {
     [SerializeField] private GameObject _blockSpawner;
@@ -12,14 +10,16 @@ public class BoardManager : MonoBehaviour
     private Controller _controller;
     private BlockManager _blockManager;
 
-    private int[,] _board;
+    private int[,] _board = new int[4, 4];
+    private int[,] _mergeBlockMatch = new int[4, 4];
 
     private const int BOARD_SIZE = 4;
     private const int BLANK = 0;
     private const int NUNBER_BLOCKS_CREATE = 2;
 
-    private BlockState _blockState = BlockState.NONE;
-    private enum BlockState
+    private MoveState _moveState = MoveState.NONE;
+
+    private enum MoveState
     {
         NONE,
         UP,
@@ -39,7 +39,6 @@ public class BoardManager : MonoBehaviour
         _blockManager = _blockSpawner.transform.GetComponent<BlockManager>();
         _controller = _playerController.transform.GetComponent<Controller>();
 
-        _board = new int[4, 4];
         Initialization();
     }
 
@@ -61,8 +60,6 @@ public class BoardManager : MonoBehaviour
         {
             SetBlock(num);
         }
-
-        Debug.Log("초기화 완료!");
     }
 
     /// <summary>
@@ -75,7 +72,7 @@ public class BoardManager : MonoBehaviour
         int x, y;
         (x, y) = RandomPositionSetting();
         _board[x, y] = num;
-        _blockManager.Spawn(ConvertCoordinateToSquareID(x, y), 2);
+        _blockManager.Spawn(ConvertCoordinateToSquareID(x, y), num);
     }
 
     /// <summary>
@@ -110,24 +107,284 @@ public class BoardManager : MonoBehaviour
         return (posX, posY);
     }
 
-    private int SwitchPlusMinus(int plusMinus)
+    /// <summary>
+    /// 병합할 블록 체크
+    /// </summary>
+    /// <returns>병합할 블록이 있다면 true, 아니라면 false를 반환</returns>
+    private bool CheckMergeBlock()
     {
-        return plusMinus == 1 ? -1 : 1;
+        bool needMerge = false;
+        for (int i = 0; i < BOARD_SIZE; i++)
+        {
+            for (int j = 0; j < BOARD_SIZE; j++)
+            {
+                int blockNum1 = _board[i, j];
+
+                // UP   => i - k
+                for (int k = 1; k < BOARD_SIZE; k++)
+                {
+                    if (i - k < 0)
+                    {
+                        break;
+                    }
+
+                    int blockNum2 = _board[i - k, j];
+                    if (blockNum2 != BLANK)
+                    {
+                        if (blockNum2 == blockNum1)
+                        {
+                            needMerge = true;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                // DOWN => i + k
+                for (int k = 1; k < BOARD_SIZE; k++)
+                {
+                    if (i + k >= BOARD_SIZE)
+                    {
+                        break;
+                    }
+
+                    int blockNum2 = _board[i + k, j];
+                    if (blockNum2 != BLANK)
+                    {
+                        if (blockNum2 == blockNum1)
+                        {
+                            needMerge = true;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                // LEFT => j - k
+                for (int k = 1; k < BOARD_SIZE; k++)
+                {
+                    if (j - k < 0)
+                    {
+                        break;
+                    }
+
+                    int blockNum2 = _board[i, j - k];
+                    if (blockNum2 != BLANK)
+                    {
+                        if (blockNum2 == blockNum1)
+                        {
+                            needMerge = true;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                // RIGHT=> j + k
+                for (int k = 1; k < BOARD_SIZE; k++)
+                {
+                    if (j + k >= BOARD_SIZE)
+                    {
+                        break;
+                    }
+
+                    int blockNum2 = _board[i, j + k];
+                    if (blockNum2 != BLANK)
+                    {
+                        if (blockNum2 == blockNum1)
+                        {
+                            needMerge = true;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+            }
+
+            if (needMerge)
+            {
+                break;
+            }
+        }
+
+        return needMerge;
     }
 
     /// <summary>
-    /// 입력에 대한 블록 이동
+    /// 병합할 블록 체크
     /// </summary>
+    /// <returns>병합할 블록이 있다면 true, 아니라면 false를 반환</returns>
+    //private bool CheckMergeBlock()
+    //{
+    //    bool needMerge = false;
+    //    int mergeCount = 0;
+    //    switch (_moveState)
+    //    {
+    //        case MoveState.NONE:
+    //            for (int i = 0; i < BOARD_SIZE; i++)
+    //            {
+    //                for (int j = 0; j < BOARD_SIZE; j++)
+    //                {
+    //                    int num = _board[i, j];
+    //                    Debug.Assert(num != BLANK, "보드매니저 블록 데이터 버그");
+    //                    // 네 방향으로 체크
+    //                    // 만약 하나라도 병합할 수 있는 블럭이 있다면
+    //                    // true르 반환
+    //                    if ((i - 1 >= 0 && _board[i - 1, j] == num) || (i + 1 < BOARD_SIZE && _board[i + 1, j] == num))
+    //                    {
+    //                        return needMerge = true;
+    //                    }
+    //                    else if ((j - 1 >= 0 && _board[i, j - 1] == num) || (j + 1 < BOARD_SIZE && _board[i, j + 1] == num))
+    //                    {
+    //                        return needMerge = true;
+    //                    }
+    //                }
+    //            }
+    //            return needMerge;
+    //        case MoveState.UP:
+    //            for (int i = 0; i != BOARD_SIZE; i++)
+    //            {
+    //                for (int j = 1; j < BOARD_SIZE; j++)
+    //                {
+    //                    if (_board[j, i] != BLANK)
+    //                    {
+    //                        int num = _board[j, i];
+    //                        for (int k = j; k != 0; k--)
+    //                        {
+    //                            if (_board[k + -1, i] == num && _mergeBlockMatch[k + -1, i] == BLANK)
+    //                            {
+    //                                // 이동 병합
+    //                                _mergeBlockMatch[j, i] = _mergeBlockMatch[k + -1, i] = ++mergeCount;
+    //                            }
+    //                            else
+    //                            {
+    //                                _mergeBlockMatch[j, i] = BLANK;
+    //                            }
+    //                        }
+    //                    }
+    //                    else
+    //                    {
+    //                        _mergeBlockMatch[j, i] = BLANK;
+    //                    }
+    //                }
+    //            }
+    //            return needMerge = mergeCount == BLANK ? false : true;
+    //        case MoveState.DOWN:
+    //            for (int i = 0; i != BOARD_SIZE; i++)
+    //            {
+    //                for (int j = 2; j > -1; j--)
+    //                {
+    //                    if (_board[j, i] != BLANK)
+    //                    {
+    //                        int num = _board[j, i];
+    //                        for (int k = j; k != 3; k++)
+    //                        {
+    //                            if (_board[k + 1, i] == num && _mergeBlockMatch[k + 1, i] == BLANK)
+    //                            {
+    //                                _mergeBlockMatch[j, i] = _mergeBlockMatch[k + 1, i] = ++mergeCount;
+    //                            }
+    //                            else
+    //                            {
+    //                                _mergeBlockMatch[j, i] = BLANK;
+    //                            }
+    //                        }
+    //                    }
+    //                    else
+    //                    {
+    //                        _mergeBlockMatch[j, i] = BLANK;
+    //                    }
+    //                }
+    //            }
+    //            return needMerge = mergeCount == BLANK ? false : true;
+    //        case MoveState.LEFT:
+    //            for (int i = 0; i != BOARD_SIZE; i++)
+    //            {
+    //                for (int j = 1; j < BOARD_SIZE; j++)
+    //                {
+    //                    if (_board[i, j] != BLANK)
+    //                    {
+    //                        int num = _board[i, j];
+    //                        for (int k = j; k != 0; k--)
+    //                        {
+    //                            if (_board[i, k + -1] == num && _mergeBlockMatch[i, k + -1] == BLANK)
+    //                            {
+    //                                _mergeBlockMatch[i, j] = _mergeBlockMatch[i, k + -1] = ++mergeCount;
+    //                            }
+    //                            else
+    //                            {
+    //                                _mergeBlockMatch[i, j] = BLANK;
+    //                            }
+    //                        }
+    //                    }
+    //                    else
+    //                    {
+    //                        _mergeBlockMatch[i, j] = BLANK;
+    //                    }
+    //                }
+    //            }
+    //            return needMerge = mergeCount == BLANK ? false : true;
+    //        case MoveState.RIGHT:
+    //            for (int i = 0; i != BOARD_SIZE; i++)
+    //            {
+    //                for (int j = 2; j > -1; j--)
+    //                {
+    //                    if (_board[i, j] != BLANK)
+    //                    {
+    //                        int num = _board[i, j];
+    //                        for (int k = j; k != 3; k++)
+    //                        {
+    //                            if (_board[i, k + 1] == num && _mergeBlockMatch[i, k + 1] == BLANK)
+    //                            {
+    //                                _mergeBlockMatch[i, j] = _mergeBlockMatch[i, k + 1] = ++mergeCount;
+    //                            }
+    //                            else
+    //                            {
+    //                                _mergeBlockMatch[i, j] = BLANK;
+    //                            }
+    //                        }
+    //                    }
+    //                    else
+    //                    {
+    //                        _mergeBlockMatch[i, j] = BLANK;
+    //                    }
+    //                }
+    //            }
+    //            return needMerge = mergeCount == BLANK ? false : true;
+    //    }
+    //
+    //    return needMerge;
+    //}
+
     private void MoveBlock()
     {
-        ProcessingStatusCheck(true);
-
-        List<int> margeSquareIDList = new List<int>();
-        List<int> mergeResultList = new List<int>();
         bool createBlock = false;
-        switch(_blockState)
+        switch (_moveState)
         {
-            case BlockState.UP:
+            case MoveState.UP:
                 for (int i = 0; i != 4; i++)
                 {
                     bool merge = false;
@@ -162,13 +419,12 @@ public class BoardManager : MonoBehaviour
                                     if (merge == false && _board[k + -1, i] == blockNum) // 그게 같은 숫자의 블록이라면
                                     {
                                         // 이동 병합
-                                        _board[k + -1, i] += blockNum;
+                                        int mergeNum = blockNum + blockNum;
+                                        merge = true;
+                                        _board[k + -1, i] = mergeNum;
                                         GameManager.Instance.AddScore(_board[k + -1, i]);
                                         _board[j, i] = 0;
-                                        _blockManager.BlockMoveRequest(currentSquareID, ConvertCoordinateToSquareID(k + -1, i));
-                                        margeSquareIDList.Add(ConvertCoordinateToSquareID(k + -1, i));
-                                        mergeResultList.Add(blockNum + blockNum);
-                                        merge = true;
+                                        _blockManager.BlockMoveRequest(currentSquareID, ConvertCoordinateToSquareID(k + -1, i), merge, mergeNum);
                                     }
                                     else // 아니라면
                                     {
@@ -189,7 +445,7 @@ public class BoardManager : MonoBehaviour
                     }
                 }
                 break;
-            case BlockState.DOWN:
+            case MoveState.DOWN:
                 for (int i = 0; i != 4; i++)
                 {
                     bool merge = false;
@@ -224,13 +480,12 @@ public class BoardManager : MonoBehaviour
                                     if (merge == false && _board[k + 1, i] == blockNum) // 그게 같은 숫자의 블록이라면
                                     {
                                         // 이동 병합
-                                        _board[k + 1, i] += blockNum;
+                                        int mergeNum = blockNum + blockNum;
+                                        merge = true;
+                                        _board[k + 1, i] = mergeNum;
                                         GameManager.Instance.AddScore(_board[k + 1, i]);
                                         _board[j, i] = 0;
-                                        _blockManager.BlockMoveRequest(currentSquareID, ConvertCoordinateToSquareID(k + 1, i));
-                                        margeSquareIDList.Add(ConvertCoordinateToSquareID(k + 1, i));
-                                        mergeResultList.Add(blockNum + blockNum);
-                                        merge = true;
+                                        _blockManager.BlockMoveRequest(currentSquareID, ConvertCoordinateToSquareID(k + 1, i), merge, mergeNum);
                                     }
                                     else // 아니라면
                                     {
@@ -251,7 +506,7 @@ public class BoardManager : MonoBehaviour
                     }
                 }
                 break;
-            case BlockState.LEFT:
+            case MoveState.LEFT:
                 for (int i = 0; i != 4; i++)
                 {
                     bool merge = false;
@@ -286,13 +541,12 @@ public class BoardManager : MonoBehaviour
                                     if (merge == false && _board[i, k + -1] == blockNum) // 그게 같은 숫자의 블록이라면
                                     {
                                         // 이동 병합
-                                        _board[i, k + -1] += blockNum;
+                                        int mergeNum = blockNum + blockNum;
+                                        merge = true;
+                                        _board[i, k + -1] = mergeNum;
                                         GameManager.Instance.AddScore(_board[i, k + -1]);
                                         _board[i, j] = 0;
-                                        _blockManager.BlockMoveRequest(currentSquareID, ConvertCoordinateToSquareID(i, k + -1));
-                                        margeSquareIDList.Add(ConvertCoordinateToSquareID(i, k + -1));
-                                        mergeResultList.Add(blockNum + blockNum);
-                                        merge = true;
+                                        _blockManager.BlockMoveRequest(currentSquareID, ConvertCoordinateToSquareID(i, k + -1), merge, mergeNum);
                                     }
                                     else // 아니라면
                                     {
@@ -313,7 +567,7 @@ public class BoardManager : MonoBehaviour
                     }
                 }
                 break;
-            case BlockState.RIGHT:
+            case MoveState.RIGHT:
                 for (int i = 0; i != 4; i++)
                 {
                     bool merge = false;
@@ -348,13 +602,12 @@ public class BoardManager : MonoBehaviour
                                     if (merge == false && _board[i, k + 1] == blockNum) // 그게 같은 숫자의 블록이라면
                                     {
                                         // 이동 병합
-                                        _board[i, k + 1] += blockNum;
+                                        int mergeNum = blockNum + blockNum;
+                                        merge = true;
+                                        _board[i, k + 1] = mergeNum;
                                         GameManager.Instance.AddScore(_board[i, k + 1]);
                                         _board[i, j] = 0;
-                                        _blockManager.BlockMoveRequest(currentSquareID, ConvertCoordinateToSquareID(i, k + 1));
-                                        margeSquareIDList.Add(ConvertCoordinateToSquareID(i, k + 1));
-                                        mergeResultList.Add(blockNum + blockNum);
-                                        merge = true;
+                                        _blockManager.BlockMoveRequest(currentSquareID, ConvertCoordinateToSquareID(i, k + 1), merge, mergeNum);
                                     }
                                     else // 아니라면
                                     {
@@ -376,7 +629,6 @@ public class BoardManager : MonoBehaviour
                 }
                 break;
         }
-        StartCoroutine(RequestMerge(margeSquareIDList, mergeResultList));
 
         if (createBlock)
         {
@@ -384,167 +636,300 @@ public class BoardManager : MonoBehaviour
         }
     }
 
-    
+
+    /// <summary>
+    /// 입력에 대한 블록 이동
+    /// </summary>
     //private void MoveBlock()
     //{
-    //    ProcessingStatusCheck(true);
-
-    //    int FirstSearchPoint = BLANK;
-    //    int SecondSearchPoint = BLANK;
-    //    int plusMinus = BLANK;
-    //    switch (_blockState)
+    //    // 병합할 블록 체크
+    //    bool createBlock = CheckMergeBlock();
+    //    for (int i = 0; i < BOARD_SIZE; i++)
     //    {
-    //        case BlockState.UP: case BlockState.LEFT:
-    //            FirstSearchPoint = 1;
-    //            SecondSearchPoint = 4;
-    //            plusMinus = 1;
-    //            break;
-    //        case BlockState.DOWN: case BlockState.RIGHT:
-    //            FirstSearchPoint = 2;
-    //            SecondSearchPoint = -1;
-    //            plusMinus = -1;
-    //            break;
-    //        default:
-    //            break;
+    //        for (int j = 0; j < BOARD_SIZE; j++)
+    //        {
+    //            if (_mergeBlockMatch[i, j] != BLANK)
+    //            {
+    //                Debug.Log("얘는 병합해야합니다.");
+    //                _blockManager.UpdateIsNeedMerge(ConvertCoordinateToSquareID(i, j), true);
+    //            }
+    //        }
     //    }
 
     //    List<int> margeSquareIDList = new List<int>();
     //    List<int> mergeResultList = new List<int>();
-    //    bool createBlock = false;
-    //    for (int i = FirstSearchPoint; i != SecondSearchPoint; i += plusMinus)
+
+    //    switch (_moveState)
     //    {
-    //        for (int j = 0; j < 4; j++)
-    //        {
-    //            switch(_blockState)
+    //        case MoveState.UP:
+    //            for (int i = 0; i != BOARD_SIZE; i++)
     //            {
-    //                case BlockState.UP: case BlockState.DOWN:
-    //                    // Vertical Search
-    //                    if (_board[i, j] != BLANK)
-    //                    {
-    //                        int blockNum = _board[i, j];
-    //                        if (createBlock == false)
-    //                        {
-    //                            createBlock = true;
-    //                        }
-
-    //                        plusMinus = SwitchPlusMinus(plusMinus);
-
-    //                        // 여기가 진짜 문제
-    //                        for (int k = i; k != FirstSearchPoint + plusMinus; k += plusMinus)
-    //                        {
-    //                            // 이동시킬 자리 탐색
-    //                            if (_board[k + plusMinus, j] != BLANK)
-    //                            {
-    //                                if (_board[k + plusMinus, j] == blockNum)
-    //                                {
-    //                                    // 이동 병합
-    //                                    _board[k + plusMinus, j] += blockNum;
-    //                                    _board[i, j] = 0;
-    //                                    _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(i, j), ConvertCoordinateToSquareID(k + plusMinus, j));
-    //                                    margeSquareIDList.Add(ConvertCoordinateToSquareID(k + plusMinus, j));
-    //                                    mergeResultList.Add(blockNum + blockNum);
-    //                                }
-    //                                else
-    //                                {
-    //                                    // 이동
-    //                                    if (k != i)
-    //                                    {
-    //                                        _board[k, j] = _board[i, j];
-    //                                        _board[i, j] = 0;
-    //                                        _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(i, j), ConvertCoordinateToSquareID(k, j));
-    //                                    }
-    //                                }
-    //                            }
-    //                            else if ((k + plusMinus) == FirstSearchPoint + plusMinus && _board[k + plusMinus, j] == BLANK)
-    //                            {
-    //                                _board[k + plusMinus, j] = blockNum;
-    //                                _board[i, j] = 0;
-    //                                _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(i, j), ConvertCoordinateToSquareID(k + plusMinus, j));
-    //                            }
-    //                        }
-
-    //                        plusMinus = SwitchPlusMinus(plusMinus);
-    //                    }
-    //                    break;
-
-    //                case BlockState.LEFT: case BlockState.RIGHT:
-    //                    // Horizontal Search
+    //                for (int j = 1; j < BOARD_SIZE; j++)
+    //                {
     //                    if (_board[j, i] != BLANK)
     //                    {
     //                        int blockNum = _board[j, i];
+    //                        int previousID = ConvertCoordinateToSquareID(j, i);
     //                        if (createBlock == false)
     //                        {
     //                            createBlock = true;
     //                        }
 
-    //                        plusMinus = SwitchPlusMinus(plusMinus);
-
-    //                        // 여기가 진짜 문제
-    //                        for (int k = i; k != FirstSearchPoint + plusMinus; k += plusMinus)
+    //                        for (int k = j; k != 0; k--)
     //                        {
-    //                            // 이동시킬 자리 탐색
-    //                            if (_board[j, k + plusMinus] != BLANK)
+    //                            int currentID;
+    //                            if ((k + -1) == 0 && _board[k + -1, i] == BLANK)
     //                            {
-    //                                if (_board[j, k + plusMinus] == blockNum)
+    //                                _board[k + -1, i] = blockNum;
+    //                                _board[j, i] = BLANK;
+
+    //                                currentID = ConvertCoordinateToSquareID(k + -1, i);
+    //                                _blockManager.BlockMoveRequest(previousID, currentID);
+
+    //                                break;
+    //                            }
+
+    //                            if (_board[k + -1, i] != BLANK)
+    //                            {
+    //                                if (_mergeBlockMatch[k + -1, i] == _mergeBlockMatch[j, i])
     //                                {
-    //                                    // 이동 병합
-    //                                    _board[j, k + plusMinus] += blockNum;
-    //                                    _board[j, i] = 0;
-    //                                    _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(j, i), ConvertCoordinateToSquareID(j, k + plusMinus));
-    //                                    margeSquareIDList.Add(ConvertCoordinateToSquareID(j, k + plusMinus));
-    //                                    mergeResultList.Add(blockNum + blockNum);
+    //                                    int mergeNum = blockNum * 2;
+    //                                    _board[k + -1, i] = mergeNum;
+    //                                    _board[j, i] = BLANK;
+
+    //                                    GameManager.Instance.AddScore(mergeNum);
+    //                                    currentID = ConvertCoordinateToSquareID(k + -1, i);
+    //                                    _blockManager.BlockMoveRequest(previousID, currentID);
+
+    //                                    margeSquareIDList.Add(currentID);
+    //                                    mergeResultList.Add(mergeNum);
     //                                }
     //                                else
     //                                {
-    //                                    // 이동
-    //                                    if (k != i)
+    //                                    if (k != j)
     //                                    {
-    //                                        _board[k, j] = _board[j, i];
-    //                                        _board[j, i] = 0;
-    //                                        _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(j, i), ConvertCoordinateToSquareID(j, k));
+    //                                        _board[k, i] = _board[j, i];
+    //                                        _board[j, i] = BLANK;
+    //                                        currentID = ConvertCoordinateToSquareID(k, i);
+    //                                        _blockManager.BlockMoveRequest(previousID, currentID);
     //                                    }
     //                                }
+
     //                                break;
     //                            }
-    //                            else if ((k + plusMinus) == FirstSearchPoint + plusMinus && _board[j, k + plusMinus] == BLANK)
-    //                            {
-    //                                _board[j, k + plusMinus] = blockNum;
-    //                                _board[j, i] = 0;
-    //                                _blockManager.BlockMoveRequest(ConvertCoordinateToSquareID(j, i), ConvertCoordinateToSquareID(j, k + plusMinus));
-    //                            }
+    //                        }
+    //                    }
+    //                }
+    //            }
+    //            break;
+    //        case MoveState.DOWN:
+    //            for (int i = 0; i != BOARD_SIZE; i++)
+    //            {
+    //                for (int j = 2; j > -1; j--)
+    //                {
+    //                    if (_board[j, i] != BLANK)
+    //                    {
+    //                        int blockNum = _board[j, i];
+    //                        int previousID = ConvertCoordinateToSquareID(j, i);
+    //                        if (createBlock == false)
+    //                        {
+    //                            createBlock = true;
     //                        }
 
-    //                        plusMinus = SwitchPlusMinus(plusMinus);
+    //                        for (int k = j; k != 3; k++)
+    //                        {
+    //                            int currentID;
+    //                            if ((k + 1) == 3 && _board[k + 1, i] == BLANK)
+    //                            {
+    //                                _board[k + 1, i] = blockNum;
+    //                                _board[j, i] = BLANK;
+
+    //                                currentID = ConvertCoordinateToSquareID(k + 1, i);
+    //                                _blockManager.BlockMoveRequest(previousID, currentID);
+
+    //                                break;
+    //                            }
+
+    //                            if (_board[k + 1, i] != BLANK)
+    //                            {
+    //                                if (_mergeBlockMatch[k + 1, i] == _mergeBlockMatch[j, i])
+    //                                {
+    //                                    int mergeNum = blockNum * 2;
+    //                                    _board[k + 1, i] = mergeNum;
+    //                                    _board[j, i] = BLANK;
+
+    //                                    GameManager.Instance.AddScore(mergeNum);
+    //                                    currentID = ConvertCoordinateToSquareID(k + 1, i);
+    //                                    _blockManager.BlockMoveRequest(previousID, currentID);
+
+    //                                    margeSquareIDList.Add(currentID);
+    //                                    mergeResultList.Add(mergeNum);
+    //                                }
+    //                                else
+    //                                {
+    //                                    if (k != j)
+    //                                    {
+    //                                        _board[k, i] = _board[j, i];
+    //                                        _board[j, i] = BLANK;
+    //                                        currentID = ConvertCoordinateToSquareID(k, i);
+    //                                        _blockManager.BlockMoveRequest(previousID, currentID);
+    //                                    }
+    //                                }
+
+    //                                break;
+    //                            }
+    //                        }
     //                    }
-    //                    break;
+    //                }
     //            }
-    //        }
+    //            break;
+    //        case MoveState.LEFT:
+    //            for (int i = 0; i != BOARD_SIZE; i++)
+    //            {
+    //                for (int j = 1; j < BOARD_SIZE; j++)
+    //                {
+    //                    if (_board[i, j] != BLANK)
+    //                    {
+    //                        int blockNum = _board[i, j];
+    //                        int previousID = ConvertCoordinateToSquareID(i, j);
+    //                        if (createBlock == false)
+    //                        {
+    //                            createBlock = true;
+    //                        }
+
+    //                        for (int k = j; k != 0; k--)
+    //                        {
+    //                            int currentID;
+    //                            if ((k + -1) == 0 && _board[i, k + -1] == BLANK)
+    //                            {
+    //                                _board[i, k + -1] = blockNum;
+    //                                _board[i, j] = BLANK;
+
+    //                                currentID = ConvertCoordinateToSquareID(i, k + -1);
+    //                                _blockManager.BlockMoveRequest(previousID, currentID);
+
+    //                                break;
+    //                            }
+
+    //                            if (_board[i, k + -1] != BLANK)
+    //                            {
+    //                                if (_mergeBlockMatch[i, k + -1] == _mergeBlockMatch[i, j])
+    //                                {
+    //                                    int mergeNum = blockNum * 2;
+    //                                    _board[i, k + -1] = mergeNum;
+    //                                    _board[i, j] = BLANK;
+
+    //                                    GameManager.Instance.AddScore(mergeNum);
+    //                                    currentID = ConvertCoordinateToSquareID(i, k + -1);
+    //                                    _blockManager.BlockMoveRequest(previousID, currentID);
+
+    //                                    margeSquareIDList.Add(currentID);
+    //                                    mergeResultList.Add(mergeNum);
+    //                                }
+    //                                else
+    //                                {
+    //                                    if (k != j)
+    //                                    {
+    //                                        _board[i, k] = _board[i, j];
+    //                                        _board[i, j] = BLANK;
+    //                                        currentID = ConvertCoordinateToSquareID(i, k);
+    //                                        _blockManager.BlockMoveRequest(previousID, currentID);
+    //                                    }
+    //                                }
+
+    //                                break;
+    //                            }
+    //                        }
+    //                    }
+    //                }
+    //            }
+    //            break;
+    //        case MoveState.RIGHT:
+    //            for (int i = 0; i != 4; i++)
+    //            {
+    //                for (int j = 2; j > -1; j--)
+    //                {
+    //                    if (_board[i, j] != BLANK)
+    //                    {
+    //                        int blockNum = _board[i, j];
+    //                        int previousID = ConvertCoordinateToSquareID(i, j);
+    //                        if (createBlock == false)
+    //                        {
+    //                            createBlock = true;
+    //                        }
+
+    //                        for (int k = j; k != 3; k++)
+    //                        {
+    //                            int currentID;
+    //                            if ((k + 1) == 3 && _board[i, k + 1] == BLANK)
+    //                            {
+    //                                _board[i, k + 1] = blockNum;
+    //                                _board[i, j] = BLANK;
+
+    //                                currentID = ConvertCoordinateToSquareID(i, k + 1);
+    //                                _blockManager.BlockMoveRequest(previousID, currentID);
+
+    //                                break;
+    //                            }
+
+    //                            if (_board[i, k + 1] != BLANK)
+    //                            {
+    //                                if (_mergeBlockMatch[i, k + 1] == _mergeBlockMatch[i, j])
+    //                                {
+    //                                    int mergeNum = blockNum * 2;
+    //                                    _board[i, k + 1] = mergeNum;
+    //                                    _board[i, j] = BLANK;
+
+    //                                    GameManager.Instance.AddScore(mergeNum);
+    //                                    currentID = ConvertCoordinateToSquareID(i, k + 1);
+    //                                    _blockManager.BlockMoveRequest(previousID, currentID);
+
+    //                                    margeSquareIDList.Add(currentID);
+    //                                    mergeResultList.Add(mergeNum);
+    //                                }
+    //                                else
+    //                                {
+    //                                    if (k != j)
+    //                                    {
+    //                                        _board[i, k] = _board[i, j];
+    //                                        _board[i, j] = BLANK;
+    //                                        currentID = ConvertCoordinateToSquareID(i, k);
+    //                                        _blockManager.BlockMoveRequest(previousID, currentID);
+    //                                    }
+    //                                }
+
+    //                                break;
+    //                            }
+    //                        }
+    //                    }
+    //                }
+    //            }
+    //            break;
     //    }
-    //    StartCoroutine(RequestMerge(margeSquareIDList, mergeResultList));
 
     //    if (createBlock)
     //    {
-    //        SetBlock(2);   
+    //        SetBlock(2);
     //    }
     //}
 
-    IEnumerator RequestMerge(List<int> mergeSquareIDList, List<int> mergeResultList)
-    {
-        yield return new WaitForSeconds(0.01f);
-        // 머지 요청
-        _blockManager.MergeBlock(mergeSquareIDList);
+    //IEnumerator RequestMerge(List<int> mergeSquareIDList, List<int> mergeResultList)
+    //{
+    //    yield return new WaitForSeconds(0.01f);
+    //    // 머지 요청
+    //    _blockManager.MergeBlock(mergeSquareIDList);
 
-        int count = mergeResultList.Count;
-        for (int i = 0; i < count; i++)
-        {
-            _blockManager.Spawn(mergeSquareIDList[i], mergeResultList[i]);
-        }
+    //    int count = mergeResultList.Count;
+    //    for (int i = 0; i < count; i++)
+    //    {
+    //        _blockManager.Spawn(mergeSquareIDList[i], mergeResultList[i]);
+    //    }
 
-        // 입력 받기 가능 체크
-        ProcessingStatusCheck(false);
+    //    // 입력 받기 가능 체크
+    //    ProcessingStatusCheck(false);
 
-        yield break;
-    }
+    //    yield break;
+    //}
 
     private bool NoBlank()
     {
@@ -563,55 +948,56 @@ public class BoardManager : MonoBehaviour
         return squareID;
     }
 
-    private bool _processing = false;
-    /// <summary>
-    /// 입력을 받기 위해 블록이 이동중인지 체크해야 함
-    /// </summary>
-    /// <param name="processing">블록이 아직 이동중이라면 true, 아니라면 false</param>
-    private void ProcessingStatusCheck(bool processing)
-    {
-        _processing = processing;
-    }
-
     void Update()
     {
-        if (NoBlank())
-        {
-            // 게임 종료
-            GameOver();
-        }
-
-        if (_processing)
-        {
-            return;
-        }
+        //if (_moveState != MoveState.NONE)
+        //{
+        //    return;
+        //}
 
         if (_controller.up)
         {
-            _blockState = BlockState.UP;
+            _moveState = MoveState.UP;
             MoveBlock();
             RandomPositionSetting();
         }
 
         if (_controller.down)
         {
-            _blockState = BlockState.DOWN;
+            _moveState = MoveState.DOWN;
             MoveBlock();
             RandomPositionSetting();
         }
 
         if (_controller.right)
         {
-            _blockState = BlockState.RIGHT;
+            _moveState = MoveState.RIGHT;
             MoveBlock();
             RandomPositionSetting();
         }
 
         if (_controller.left)
         {
-            _blockState = BlockState.LEFT;
+            _moveState = MoveState.LEFT;
             MoveBlock();
             RandomPositionSetting();
+        }
+
+        if (isGameOver())
+        {
+            GameOver();
+        }
+    }
+
+    private bool isGameOver()
+    {
+        if (NoBlank() && CheckMergeBlock())
+        {
+            return true;
+        }
+        else
+        {
+            return false;
         }
     }
 

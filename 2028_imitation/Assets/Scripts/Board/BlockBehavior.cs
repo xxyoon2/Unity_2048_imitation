@@ -8,6 +8,7 @@ public class BlockBehavior : MonoBehaviour
     [SerializeField] private TextMeshPro _text;
     private Transform _targetPoint;
     private Animator _animator;
+    private bool _isMove = false;
 
     private const float MOVE_TIEM = 0.08f;
 
@@ -19,20 +20,32 @@ public class BlockBehavior : MonoBehaviour
 
     public void Creation(int num)
     {
-        _text.text = num.ToString();
-        //_animator.Play("BlockCreation");
+        _text.text = $"{num}";
+        _animator.Play("BlockCreation");
     }
 
     public void Extinction()
     {
-        //_animator.Play("BlockExtinction");
+        _animator.Play("BlockExtinction");
+    }
+
+    public void Merge()
+    {
+        _animator.Play("MergeBlocks");
     }
 
     public void Move(Transform targetPoint)
     {
+        _isMove = true;
         _targetPoint = targetPoint;
         StartCoroutine(MoveTargetPoint());
     }
+
+    public bool IsBlockMove()
+    {
+        return _isMove;
+    }
+
 
     /// <summary>
     /// 실질적으로 블록을 움직이는 코루틴
@@ -56,6 +69,7 @@ public class BlockBehavior : MonoBehaviour
             }
             yield return null;
         }
+        _isMove = false;
         yield break;
     }
 }

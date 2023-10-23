@@ -50,7 +50,7 @@ public class GameManager : SingletonBehaviour<GameManager>
 
     private void OnEnable()
     {
-        //OnBestScoreChanged?.Invoke(BestScore);
+        OnBestScoreChanged?.Invoke(BestScore);
         OnResetGame.AddListener(ResetScore);
     }
 
